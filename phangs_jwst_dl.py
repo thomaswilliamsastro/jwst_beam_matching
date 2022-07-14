@@ -1,11 +1,12 @@
+import glob
 import os
 import socket
 import warnings
 from datetime import datetime
 
+import numpy as np
 from astroquery.exceptions import NoResultsWarning
 from astroquery.mast import Observations
-import numpy as np
 
 
 def get_time():
@@ -21,22 +22,28 @@ warnings.simplefilter('error', NoResultsWarning)
 host = socket.gethostname()
 
 if 'node' in host:
-    dl_dir = '/data/beegfs/astro-storage/groups/schinnerer/williams/jwst_data'
+    base_dir = '/data/beegfs/astro-storage/groups/schinnerer/williams/jwst_data'
 else:
-    dl_dir = '/Users/williams/Documents/phangs/jwst'
+    base_dir = '/Users/williams/Documents/phangs/jwst'
 
-os.chdir(dl_dir)
+os.chdir(base_dir)
+
+observations = Observations()
 
 instrument = 'JWST'
-prop_id = '02107'
+prop_id = '2107'
 calib_level = [2, 3]
-extension = 'fits'  # None after initial run?
-jwst_instrument = 'NIRCAM/IMAGE'
+extension = None
+instrument_name = None
+login = False
+
+if login:
+    observations.login()
 
 targets = [
-    'NGC-7496',
-    # 'IC-5332',
-    # 'NGC-628',
+    'ngc7496',
+    # 'ic5332',
+    # 'ngc0628',
 ]
 
 print('[%s] Downloading from proposal %s with calib_level %s, extension %s' %
@@ -47,33 +54,51 @@ for target in targets:
 
     print('[%s] Starting download for %s' % (get_time(), target))
 
-    obs_list = Observations.query_criteria(obs_collection=instrument,
-                                           proposal_id=prop_id,
-                                           target_name=target)
+    obs_list = Observations.query_object(target)
 
     if np.all(obs_list['calib_level'] == -1):
         print('[%s] No available data for %s' % (get_time(), target))
-        # continue
+        continue
 
-    if jwst_instrument is not None:
-        obs_list = obs_list[obs_list['instrument_name'] == jwst_instrument]
+    obs_list = obs_list[obs_list['obs_collection'] == instrument]
+    obs_list = obs_list[obs_list['proposal_id'] == prop_id]
+    obs_list = obs_list[obs_list['calib_level'] >= 0]
+
+    # obs_list = observations.query_criteria(
+    #     obs_collection=instrument,
+    #     proposal_id=prop_id,
+    #     target_name=target,
+    # )
+
+    dl_dir = target.replace(' ', '_')
+    if not os.path.exists(dl_dir):
+        os.makedirs(dl_dir)
+    os.chdir(dl_dir)
+
+    if instrument_name is not None:
+        obs_list = obs_list[obs_list['instrument_name'] == instrument_name]
 
     for obs in obs_list:
         try:
-            product_list = Observations.get_product_list(obs)
+            product_list = observations.get_product_list(obs)
         except NoResultsWarning:
             print('[%s] Data not available for %s' % (get_time(), obs['obs_id']))
             continue
 
-        print('[%s] Downloading %s' % (get_time, obs['obs_id']))
+        print('[%s] Downloading %s' % (get_time(), obs['obs_id']))
 
         if do_filter:
-            products = Observations.filter_products(product_list,
+            products = observations.filter_products(product_list,
                                                     calib_level=calib_level,
+                                                    productType=['SCIENCE', 'science'],
                                                     extension=extension)
             if len(products) > 0:
-                manifest = Observations.download_products(products)
+                manifest = observations.download_products(products)
+            else:
+                print('[%s] Filtered data not available' % get_time())
         else:
-            manifest = Observations.download_products(product_list)
+            manifest = observations.download_products(product_list)
+
+    os.chdir(base_dir)
 
 print('Complete!')
