@@ -8,6 +8,8 @@ import numpy as np
 from astroquery.exceptions import NoResultsWarning
 from astroquery.mast import Observations
 
+from api_key import api_key
+
 
 def get_time():
     """Get current time as a string"""
@@ -32,13 +34,19 @@ observations = Observations()
 
 instrument = 'JWST'
 prop_id = '2107'
-calib_level = [2, 3]
+
+calib_level = [
+    # 1,
+    2,
+    3,
+]
+
 extension = None
 instrument_name = None
-login = False
+login = True
 
 if login:
-    observations.login()
+    observations.login(token=api_key)
 
 targets = [
     'ngc7496',
@@ -46,8 +54,15 @@ targets = [
     # 'ngc0628',
 ]
 
-print('[%s] Downloading from proposal %s with calib_level %s, extension %s' %
-      (get_time(), prop_id, calib_level, extension))
+product_type = [
+    'SCIENCE',
+    'PREVIEW',
+    'INFO',
+    # 'AUXILIARY',
+]
+
+print('[%s] Downloading from proposal %s with calib_level %s, extension %s, instrument %s' %
+      (get_time(), prop_id, calib_level, extension, instrument_name))
 
 do_filter = True
 for target in targets:
@@ -88,9 +103,10 @@ for target in targets:
         print('[%s] Downloading %s' % (get_time(), obs['obs_id']))
 
         if do_filter:
+            # print(list(np.unique(product_list['productType'])))
             products = observations.filter_products(product_list,
                                                     calib_level=calib_level,
-                                                    productType=['SCIENCE', 'science'],
+                                                    productType=product_type,
                                                     extension=extension)
             if len(products) > 0:
                 manifest = observations.download_products(products)
