@@ -4,6 +4,8 @@ import socket
 
 import numpy as np
 from astropy.io import fits
+from astropy.convolution import Gaussian2DKernel
+import matplotlib.pyplot as plt
 
 from make_jwst_kernels import MakeConvolutionKernel, get_pixscale
 
@@ -44,16 +46,32 @@ miri = webbpsf.MIRI()
 
 # filter_pairs = [['F770W', 'F2100W'],
 #                 ['F770W', 'F1130W']]
+filter_pairs = [['F2100W', 'gauss1.67']]
 
-filter_pairs = list(itertools.combinations(all_filters, 2))
+# filter_pairs = list(itertools.combinations(all_filters, 2))
 
 for filter_pair in filter_pairs:
     input_filter = filter_pair[0]
     output_filter = filter_pair[1]
 
+    # TODO: Edit for Gaussians
+
+    jwst_filter_type = {}
+
     # Check that the wavelengths work out, we can only go longer
-    input_wavelength = int(input_filter[1:-1])
-    output_wavelength = int(output_filter[1:-1])
+    try:
+        input_wavelength = int(input_filter[1:-1])
+        jwst_filter_type[input_filter] = 'jwst'
+    except ValueError:
+        input_wavelength = 0
+        jwst_filter_type[input_filter] = 'gauss'
+
+    try:
+        output_wavelength = int(output_filter[1:-1])
+        jwst_filter_type[output_filter] = 'jwst'
+    except ValueError:
+        output_wavelength = 1e10
+        jwst_filter_type[output_filter] = 'gauss'
 
     if output_wavelength <= input_wavelength:
         continue
@@ -87,8 +105,31 @@ for filter_pair in filter_pairs:
                                       # fov_pixels=fov_pixels,
                                       fov_arcsec=fov_arcsec,
                                       )[0]
+            elif jwst_filter_type[jwst_filter] == 'gauss':
+                fwhm = float(jwst_filter.strip('gauss'))
+                pix_size = fwhm / 10
+                std_pix = fwhm / 2.355 / pix_size
+
+                gauss_2d = Gaussian2DKernel(x_stddev=std_pix)
+
+                psf = fits.PrimaryHDU(data=np.array(gauss_2d.array, dtype=np.float32))
+
+                psf.header['BITPIX'] = -32
+
+                psf.header['CRPIX1'] = (gauss_2d.array.shape[1] + 1) / 2
+                psf.header['CRPIX2'] = (gauss_2d.array.shape[0] + 1) / 2
+
+                psf.header['CRVAL1'] = 0.00
+                psf.header['CRVAL2'] = 0.00
+
+                psf.header['CDELT1'] = - pix_size / 3600
+                psf.header['CDELT2'] = pix_size / 3600
+
+                psf.header['CTYPE1'] = 'RA---TAN'
+                psf.header['CTYPE2'] = 'DEC--TAN'
+
             else:
-                raise Warning('Not sure which camera filter %s uses' % jwst_filter)
+                raise Warning('Not sure how to deal with filter %s' % jwst_filter)
             # print(psf.header)
 
             # Pad if we're awkwardly even
