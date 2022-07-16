@@ -1,11 +1,9 @@
-import itertools
 import os
 import socket
 
 import numpy as np
-from astropy.io import fits
 from astropy.convolution import Gaussian2DKernel
-import matplotlib.pyplot as plt
+from astropy.io import fits
 
 from make_jwst_kernels import MakeConvolutionKernel, get_pixscale
 
@@ -53,8 +51,6 @@ filter_pairs = [['F2100W', 'gauss1.67']]
 for filter_pair in filter_pairs:
     input_filter = filter_pair[0]
     output_filter = filter_pair[1]
-
-    # TODO: Edit for Gaussians
 
     jwst_filter_type = {}
 
