@@ -49,9 +49,9 @@ if login:
     observations.login(token=api_key)
 
 targets = [
-    'ngc7496',
+    # 'ngc7496',
     # 'ic5332',
-    # 'ngc0628',
+    'ngc0628',
 ]
 
 product_type = [
